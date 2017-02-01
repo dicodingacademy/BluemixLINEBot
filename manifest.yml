@@ -1,0 +1,8 @@
+applications:
+- path: build/libs/movies-bot-0.1.0.war
+  memory: 512M
+  instances: 1
+  domain: mybluemix.net
+  name: bot-bluemix
+  host: bot-bluemix
+  disk_quota: 1024M

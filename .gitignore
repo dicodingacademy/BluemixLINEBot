@@ -1,0 +1,13 @@
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+local.properties
+*.iml
+.gradle
+.idea
+app/build
+build
+.classpath
+.project
+.settings
