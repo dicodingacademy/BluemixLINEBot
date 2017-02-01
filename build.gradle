@@ -19,7 +19,7 @@ buildscript
 
 war
 {
-	baseName = 'movies-bot'
+	baseName = 'bluemixlinebot'
 	version = '0.1.0'
 }
 

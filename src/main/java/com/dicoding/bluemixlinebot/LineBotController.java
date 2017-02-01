@@ -1,5 +1,5 @@
 
-package com.linecorp.example.linebot;
+package com.dicoding.bluemixlinebot;
 
 import org.apache.http.client.HttpClient;
 import org.apache.http.entity.StringEntity;
@@ -7,12 +7,7 @@ import org.apache.http.entity.StringEntity;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.InputStream;
-import java.io.FileOutputStream;
-import java.util.Map;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,8 +17,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.client.methods.HttpPost;
 
-import org.json.JSONObject;
-import org.json.JSONArray;
 import com.google.gson.Gson;
 
 import com.linecorp.bot.client.LineSignatureValidator;

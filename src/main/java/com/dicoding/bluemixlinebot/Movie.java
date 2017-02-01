@@ -1,4 +1,4 @@
-package com.linecorp.example.linebot;
+package com.dicoding.bluemixlinebot;
 
 public class Movie {
 
