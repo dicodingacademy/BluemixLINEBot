@@ -1,25 +1,21 @@
 
 package com.dicoding.bluemixlinebot;
 
-import org.apache.http.client.HttpClient;
-import org.apache.http.entity.StringEntity;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-
+import com.google.gson.Gson;
+import com.linecorp.bot.client.LineMessagingServiceBuilder;
+import com.linecorp.bot.client.LineSignatureValidator;
+import com.linecorp.bot.model.PushMessage;
+import com.linecorp.bot.model.ReplyMessage;
+import com.linecorp.bot.model.message.TextMessage;
+import com.linecorp.bot.model.response.BotApiResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.*;
+import retrofit2.Response;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.client.methods.HttpPost;
-
-import com.google.gson.Gson;
-
-import com.linecorp.bot.client.LineSignatureValidator;
+import java.io.IOException;
 
 @RestController
 @RequestMapping(value="/linebot")
@@ -28,74 +24,131 @@ public class LineBotController
     @Autowired
     @Qualifier("com.linecorp.channel_secret")
     String lChannelSecret;
-    
+
     @Autowired
     @Qualifier("com.linecorp.channel_access_token")
     String lChannelAccessToken;
-    
+
     @RequestMapping(value="/callback", method=RequestMethod.POST)
     public ResponseEntity<String> callback(
-        @RequestHeader("X-Line-Signature") String aXLineSignature,
-        @RequestBody String aPayload)
+            @RequestHeader("X-Line-Signature") String aXLineSignature,
+            @RequestBody String aPayload)
     {
-        // compose body
         final String text=String.format("The Signature is: %s",
-            (aXLineSignature!=null && aXLineSignature.length() > 0) ? aXLineSignature : "N/A");
-        
+                (aXLineSignature!=null && aXLineSignature.length() > 0) ? aXLineSignature : "N/A");
         System.out.println(text);
-        
         final boolean valid=new LineSignatureValidator(lChannelSecret.getBytes()).validateSignature(aPayload.getBytes(), aXLineSignature);
-        
         System.out.println("The signature is: " + (valid ? "valid" : "tidak valid"));
-        
-        //Get events from source
         if(aPayload!=null && aPayload.length() > 0)
         {
             System.out.println("Payload: " + aPayload);
         }
-        
         Gson gson = new Gson();
         Payload payload = gson.fromJson(aPayload, Payload.class);
-        String idTarget = payload.events[0].source.userId;
-        System.out.println("ID Target: " + idTarget);
-        String messageText = payload.events[0].message.text;
-        System.out.println("Text Message: " + messageText);
-        
-        pushManual(idTarget, messageText);
-         
+
+        String msgText = " ";
+        String idTarget = " ";
+        String eventType = payload.events[0].type;
+
+        if (eventType.equals("join")){
+            if (payload.events[0].source.type.equals("group")){
+                replyToUser(payload.events[0].replyToken, "Hello Group");
+            }
+            if (payload.events[0].source.type.equals("room")){
+                replyToUser(payload.events[0].replyToken, "Hello Room");
+            }
+        } else if (eventType.equals("message")){
+            if (payload.events[0].source.type.equals("group")){
+                idTarget = payload.events[0].source.groupId;
+            } else if (payload.events[0].source.type.equals("room")){
+                idTarget = payload.events[0].source.roomId;
+            } else if (payload.events[0].source.type.equals("user")){
+                idTarget = payload.events[0].source.userId;
+            }
+
+            if (!payload.events[0].message.type.equals("text")){
+                replyToUser(payload.events[0].replyToken, "Unknown message");
+            } else {
+                msgText = payload.events[0].message.text;
+                msgText = msgText.toLowerCase();
+
+                if (!msgText.contains("bot leave")){
+                    try {
+                        getMessageData(msgText, idTarget);
+                    } catch (IOException e) {
+                        System.out.println("Exception is raised ");
+                        e.printStackTrace();
+                    }
+                } else {
+                    if (payload.events[0].source.type.equals("group")){
+                        leaveGR(payload.events[0].source.groupId, "group");
+                    } else if (payload.events[0].source.type.equals("room")){
+                        leaveGR(payload.events[0].source.roomId, "room");
+                    }
+                }
+
+            }
+        }
+
         return new ResponseEntity<String>(HttpStatus.OK);
     }
 
-    private void pushManual(String id_target, String message_text){
-        String url = "https://api.line.me/v2/bot/message/push";
-        
-        HttpClient client = HttpClientBuilder.create().build();
-        HttpPost post = new HttpPost(url);
-        
-        try{
-            // add header
-            post.setHeader("Content-Type", "application/json");
-            post.setHeader("Authorization", "Bearer " + lChannelAccessToken);
+    private void getMessageData(String message, String targetID) throws IOException{
+        if (message!=null){
+            pushMessage(targetID, message);
+        }
+    }
 
-            String jsonData = "{\"to\":\""+id_target+"\",\"messages\":[{\"type\":\"text\",\"text\":\""+message_text+"\"}]}";
-            System.out.println(jsonData);
-            
-            StringEntity params =new StringEntity(jsonData);
-            
-            post.setEntity(params);
-            
-            HttpResponse response = client.execute(post);
-            System.out.println("Response Code : "
-                               + response.getStatusLine().getStatusCode());
-            
-            BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
-            
-            StringBuffer result = new StringBuffer();
-            String line = "";
-            while ((line = rd.readLine()) != null) {
-                result.append(line);
+    private void replyToUser(String rToken, String messageToUser){
+        TextMessage textMessage = new TextMessage(messageToUser);
+        ReplyMessage replyMessage = new ReplyMessage(rToken, textMessage);
+        try {
+            Response<BotApiResponse> response = LineMessagingServiceBuilder
+                    .create(lChannelAccessToken)
+                    .build()
+                    .replyMessage(replyMessage)
+                    .execute();
+            System.out.println("Reply Message: " + response.code() + " " + response.message());
+        } catch (IOException e) {
+            System.out.println("Exception is raised ");
+            e.printStackTrace();
+        }
+    }
+
+    private void pushMessage(String sourceId, String txt){
+        TextMessage textMessage = new TextMessage(txt);
+        PushMessage pushMessage = new PushMessage(sourceId,textMessage);
+        try {
+            Response<BotApiResponse> response = LineMessagingServiceBuilder
+                    .create(lChannelAccessToken)
+                    .build()
+                    .pushMessage(pushMessage)
+                    .execute();
+            System.out.println(response.code() + " " + response.message());
+        } catch (IOException e) {
+            System.out.println("Exception is raised ");
+            e.printStackTrace();
+        }
+    }
+
+    private void leaveGR(String id, String type){
+        try {
+            if (type.equals("group")){
+                Response<BotApiResponse> response = LineMessagingServiceBuilder
+                        .create(lChannelAccessToken)
+                        .build()
+                        .leaveGroup(id)
+                        .execute();
+                System.out.println(response.code() + " " + response.message());
+            } else if (type.equals("room")){
+                Response<BotApiResponse> response = LineMessagingServiceBuilder
+                        .create(lChannelAccessToken)
+                        .build()
+                        .leaveRoom(id)
+                        .execute();
+                System.out.println(response.code() + " " + response.message());
             }
-        } catch (IOException e){
+        } catch (IOException e) {
             System.out.println("Exception is raised ");
             e.printStackTrace();
         }
