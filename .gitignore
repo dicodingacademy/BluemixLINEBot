@@ -7,7 +7,6 @@ local.properties
 .gradle
 .idea
 app/build
-build
 .classpath
 .project
 .settings
